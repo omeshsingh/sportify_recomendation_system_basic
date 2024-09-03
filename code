@@ -1,0 +1,87 @@
+!pip install spotipy
+
+import spotipy
+from spotipy.oauth2 import SpotifyClientCredentials
+import pandas as pd
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
+
+client_id = '5ddbb60ca58548e9af6be6a9e5f7e380'
+client_secret = 'f6bec82dd19a467cb770201ef92098bc'
+client_credentials_manager = SpotifyClientCredentials(client_id=client_id, client_secret=client_secret)
+sp = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
+
+
+def get_song_features(track_id):
+    meta = sp.track(track_id)
+    features = sp.audio_features(track_id)
+
+    track_info = {
+        'name': meta['name'],
+        'album': meta['album']['name'],
+        'artist': meta['album']['artists'][0]['name'],
+        'release_date': meta['album']['release_date'],
+        'length': meta['duration_ms'],
+        'popularity': meta['popularity'],
+        'danceability': features[0]['danceability'],
+        'energy': features[0]['energy'],
+        'key': features[0]['key'],
+        'loudness': features[0]['loudness'],
+        'mode': features[0]['mode'],
+        'speechiness': features[0]['speechiness'],
+        'acousticness': features[0]['acousticness'],
+        'instrumentalness': features[0]['instrumentalness'],
+        'liveness': features[0]['liveness'],
+        'valence': features[0]['valence'],
+        'tempo': features[0]['tempo']
+    }
+    return track_info
+
+
+track_ids = [
+    '0VjIjW4GlUZAMYd2vXMi3b',  # The Weeknd - Blinding Lights
+    '1Je1IMUlBXcx1Fz0WE7oPT',  # Wannabe
+    '7ouMYWpwJ422jRcDASZB7P',  # Knights of Cydonia
+    '2G7V7zsVDxg1yRsu7Ew9RJ',  # In My Feelings
+    '0E9ZjEAyAwOXZ7wJC0PD33',  # In My Mind
+    '2Fxmhks0bxGSBdJ92vM42m',  # Billie Eilish - bad guy
+    '4uLU6hMCjMI75M1A2tKUQC',  # Never Gonna Give You Up
+    '3KkXRkHbMCARz0aVfEt68P',  # Sunflower - Spider-Man: Into the Spider-Verse
+    '1rgnBhdG2JDFTbYkYRZAku',  # Dance Monkey
+    '6habFhsOp2NvshLv26DqMb',  # Despacito
+    '0pqnGHJpmpxLKifKRmU6WP',  # Believer
+    '0u2P5u6lvoDfwTYjAADbn4',  # Billie Eilish - lovely (with Khalid)
+    '2xLMifQCjDGFmkHkpNLD9h'   # SICKO MODE
+]
+track_features = [get_song_features(track_id) for track_id in track_ids]
+
+df = pd.DataFrame(track_features)
+
+features = df[['danceability', 'energy', 'key', 'loudness', 'mode', 'speechiness', 'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo']]
+
+
+scaler = StandardScaler()
+scaled_features = scaler.fit_transform(features)
+
+num_clusters = min(len(track_features), 3)
+kmeans = KMeans(n_clusters=num_clusters, random_state=42)
+kmeans.fit(scaled_features)
+
+
+df['cluster'] = kmeans.labels_
+
+# print(df['name'].values)
+
+def recommend_songs(song_name, df, n_recommendations=4):
+    if song_name not in df['name'].values:
+        return f"Song '{song_name}' not found in the dataset."
+
+    song_cluster = df[df['name'] == song_name]['cluster'].values[0]
+    recommendations = df[df['cluster'] == song_cluster].sample(n_recommendations)
+    return recommendations[['name', 'artist', 'album']]
+
+song_name = 'Believer'
+recommendations = recommend_songs(song_name, df)
+print(recommendations)
+
+
